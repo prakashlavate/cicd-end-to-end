@@ -1,67 +1,84 @@
 pipeline {
-    
-    agent any 
-    
+    agent any
+
     environment {
         IMAGE_TAG = "${BUILD_NUMBER}"
+        DOCKER_IMAGE = "pldockerhub7466/cicd-e2e"
     }
-    
+
     stages {
-        
-        stage('Checkout'){
-           steps {
-                git credentialsId: 'f87a34a8-0e09-45e7-b9cf-6dc68feac670', 
-                url: 'https://github.com/iam-veeramalla/cicd-end-to-end',
-                branch: 'main'
-           }
+
+        stage('Checkout App Source') {
+            steps {
+                git credentialsId: 'github-creds',
+                    url: 'https://github.com/prakashlavate/cicd-end-to-end',
+                    branch: 'main'
+            }
         }
 
-        stage('Build Docker'){
-            steps{
-                script{
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                    echo "Building Docker image..."
+                    docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} .
+                '''
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
                     sh '''
-                    echo 'Buid Docker Image'
-                    docker build -t abhishekf5/cicd-e2e:${BUILD_NUMBER} .
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
                     '''
                 }
             }
         }
 
-        stage('Push the artifacts'){
-           steps{
-                script{
+        stage('Checkout K8s Manifests') {
+            steps {
+                git credentialsId: 'github-creds',
+                    url: 'https://github.com/prakashlavate/cicd-demo-manifests-repo.git',
+                    branch: 'main'
+            }
+        }
+
+        stage('Update Manifest and Push') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'github-creds',
+                    usernameVariable: 'GIT_USERNAME',
+                    passwordVariable: 'GIT_PASSWORD'
+                )]) {
                     sh '''
-                    echo 'Push to Repo'
-                    docker push abhishekf5/cicd-e2e:${BUILD_NUMBER}
-                    '''
-                }
-            }
-        }
-        
-        stage('Checkout K8S manifest SCM'){
-            steps {
-                git credentialsId: 'f87a34a8-0e09-45e7-b9cf-6dc68feac670', 
-                url: 'https://github.com/iam-veeramalla/cicd-demo-manifests-repo.git',
-                branch: 'main'
-            }
-        }
-        
-        stage('Update K8S manifest & push to Repo'){
-            steps {
-                script{
-                    withCredentials([usernamePassword(credentialsId: 'f87a34a8-0e09-45e7-b9cf-6dc68feac670', passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) {
-                        sh '''
-                        cat deploy.yaml
-                        sed -i '' "s/32/${BUILD_NUMBER}/g" deploy.yaml
-                        cat deploy.yaml
+                        echo "Updating image tag in deploy.yaml..."
+                        git config user.name "jenkins-bot"
+                        git config user.email "jenkins@example.com"
+
+                        sed -i "s|image: ${DOCKER_IMAGE}:.*|image: ${DOCKER_IMAGE}:${IMAGE_TAG}|" deploy.yaml
+
                         git add deploy.yaml
-                        git commit -m 'Updated the deploy yaml | Jenkins Pipeline'
-                        git remote -v
-                        git push https://github.com/iam-veeramalla/cicd-demo-manifests-repo.git HEAD:main
-                        '''                        
-                    }
+                        git commit -m "Updated manifest with image tag ${IMAGE_TAG}"
+                        git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/prakashlavate/cicd-demo-manifests-repo.git HEAD:main
+                    '''
                 }
             }
         }
+
+        // Optional: Trigger Argo CD Sync directly
+        stage('Trigger Argo CD Sync') {
+            steps {
+                sh '''
+                    argocd login localhost:8081 --username admin --password YOUR_ARGOCD_PASSWORD --insecure
+                    argocd app sync your-argo-app-name
+                '''
+            }
+        }
+
     }
 }

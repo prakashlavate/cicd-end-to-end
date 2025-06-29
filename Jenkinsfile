@@ -70,15 +70,5 @@ pipeline {
             }
         }
 
-        // Optional: Trigger Argo CD Sync directly
-        stage('Trigger Argo CD Sync') {
-            steps {
-                sh '''
-                    argocd login localhost:8081 --username admin --password YOUR_ARGOCD_PASSWORD --insecure
-                    argocd app sync your-argo-app-name
-                '''
-            }
-        }
-
     }
 }

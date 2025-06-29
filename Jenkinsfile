@@ -43,7 +43,7 @@ pipeline {
         stage('Checkout K8s Manifests') {
             steps {
                 git credentialsId: 'github-creds',
-                    url: 'https://github.com/prakashlavate/cicd-demo-manifests-repo.git',
+                    url: 'https://github.com/prakashlavate/cicd-demo-manifests-repo/deploy.git',
                     branch: 'main'
             }
         }
@@ -64,7 +64,7 @@ pipeline {
 
                         git add deploy.yaml
                         git commit -m "Updated manifest with image tag ${IMAGE_TAG}"
-                        git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/prakashlavate/cicd-demo-manifests-repo.git HEAD:main
+                        git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/prakashlavate/cicd-demo-manifests-repo/deploy.git HEAD:main
                     '''
                 }
             }

@@ -1,10 +1,21 @@
-FROM python:3
-RUN pip install django==3.2
+FROM python:3.9-slim
 
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Set work directory
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
+
+# Copy project files
 COPY . .
 
-RUN python manage.py migrate
+# Expose port
 EXPOSE 8000
-CMD ["python","manage.py","runserver","0.0.0.0:8000"]
 
-
+# Run migrations and then start the server
+CMD ["sh", "-c", "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
